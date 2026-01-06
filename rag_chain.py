@@ -57,8 +57,8 @@ class RAGChain:
         docs = self.retriever.invoke(retrieved_query.content)
         context = format_docs(docs)
         final_prompt = self.prompt.format(context=context,query=query)
-        for token in self.llm.stream(final_prompt):
-            yield token
+        for chunk in self.llm.stream(final_prompt):
+            yield chunk
 
 
 rag_chain = RAGChain(llm,retriever,custom_rag_prompt)

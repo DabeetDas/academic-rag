@@ -84,7 +84,7 @@ async def chat_stream(websocket:WebSocket):
     try:
         resp = ''
         while True:
-            data = await websocket.recieve_json()
+            data = await websocket.receive_json()
             if 'query' not in data:
                 await websocket.send_text('<<E:NO_QUERY>>')
                 break
@@ -92,7 +92,7 @@ async def chat_stream(websocket:WebSocket):
             
             for token in rag_chain.stream(query):
                 await websocket.send_text(token.content)
-                resp += token
+                resp += token.content
             
             await websocket.send_text('<<END>>')
     except WebSocketDisconnect:
