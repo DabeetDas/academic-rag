@@ -3,7 +3,6 @@ A full-stack Retrieval-Augmented Generation (RAG) application with a FastAPI bac
 
 ## Project Structure
 ```bash
-.
 ├── main.py   
 ├── utils/           # Backend API routes
 ├── rag_chain.py         # RAG chain implementation
