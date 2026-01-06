@@ -15,13 +15,9 @@ A full-stack Retrieval-Augmented Generation (RAG) application with a FastAPI bac
 ```
 
 ## Backend Overview
-1. ```main.py```
-    1.1 Contains **all API routes** exposed by the FastAPI backend.
-    1.2 Responsible for request handling, orchestration, and streaming responses.
+1. ```main.py```: Contains **all API routes** exposed by the FastAPI backend & responsible for request handling, orchestration, and streaming responses.
 
-2. ```rag_chain.py```
-    2.1 Contains the **RAG chain** implementation.
-    2.2 Handles retrieval, prompt construction, and LLM invocation logic.
+2. ```rag_chain.py```: Contains the **RAG chain** implementation & handles retrieval, prompt construction, and LLM invocation logic.
 
 ## Setup Instructions
 ### Install Backend Dependencies
