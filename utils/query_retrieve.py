@@ -1,6 +1,6 @@
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
 
-def retrieve_query(query:str,llm:ChatOpenAI):
+def retrieve_query(query:str,llm:BaseChatModel):
     
     # Rewritten Query Prompt
     query_rewrite_prompt = f"""You are a helpful assistant that takes a

@@ -1,20 +1,22 @@
 from langchain_core.vectorstores.base import VectorStoreRetriever
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.prompts import PromptTemplate
 from langchain_chroma import Chroma
 from dotenv import load_dotenv
 from utils.query_retrieve import retrieve_query
 from utils.format_docs import format_docs
-from langchain_core.embeddings import FakeEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 from utils.prompt import rag_prompt
 
 load_dotenv(".env")
 
-llm = ChatOpenAI(model="gpt-4o-mini")
-embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+# Initialize Gemini LLM
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 
-embeddings = FakeEmbeddings(size=1536)
+# Initialize Gemini Embeddings
+embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+
+#embeddings = FakeEmbeddings(size=768) # Gemini embedding size is 768
 
 text_splitter = CharacterTextSplitter(
     chunk_size = 600,
@@ -22,10 +24,11 @@ text_splitter = CharacterTextSplitter(
     length_function = len
 )
 
-# Initialize ChromaDB as Vector Store
+# Initialize ChromaDB as Vector Store with persistence
 vector_store = Chroma(
     collection_name="test_collection",
-    embedding_function=embeddings
+    embedding_function=embeddings,
+    persist_directory="./chroma_db"
 )
 
 # Set Chroma as the Retriever
@@ -37,7 +40,7 @@ custom_rag_prompt = rag_prompt()
 class RAGChain:
     def __init__(
             self,
-            llm:ChatOpenAI,
+            llm:ChatGoogleGenerativeAI,
             retriever:VectorStoreRetriever,
             prompt:PromptTemplate
     ):

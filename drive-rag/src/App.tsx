@@ -7,6 +7,8 @@ interface Message {
   content: string;
 }
 
+const API_BASE = 'http://localhost:8000';
+
 function App() {
 
   const [query, setQuery] = useState<string>('');
@@ -15,12 +17,33 @@ function App() {
   const [currentResponse, setCurrentResponse] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
 
+  // Admin auth state
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [loginError, setLoginError] = useState<string>('');
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
+
+  // File upload state
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentResponse]);
+
+  // Clear upload status after 3 seconds
+  useEffect(() => {
+    if (uploadStatus) {
+      const timer = setTimeout(() => setUploadStatus(''), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [uploadStatus]);
 
   const handleQueryChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(event.target.value);
@@ -37,6 +60,95 @@ function App() {
     setMessages([]);
     setQuery('');
     setCurrentResponse('');
+  };
+
+  // Admin login handler
+  const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
+      setLoginError('Please enter username and password');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    setLoginError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (response.ok) {
+        setIsAdmin(true);
+        setShowLoginModal(false);
+        setUsername('');
+        setPassword('');
+      } else {
+        setLoginError('Invalid credentials');
+      }
+    } catch {
+      setLoginError('Connection error');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAdmin(false);
+  };
+
+  // File upload handler
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadStatus('');
+
+    const reader = new FileReader();
+
+    reader.onload = async () => {
+      try {
+        const result = reader.result as string;
+        // More robust base64 extraction
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+
+        console.log('Attempting upload to:', `${API_BASE}/upload_file`);
+        const response = await fetch(`${API_BASE}/upload_file`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_data: base64 })
+        });
+
+        if (response.ok) {
+          setUploadStatus(`✓ ${file.name} uploaded successfully`);
+        } else {
+          const error = await response.json().catch(() => ({}));
+          console.error('Server error response:', error);
+          setUploadStatus(`✗ Server Error: ${error.detail || response.statusText}`);
+        }
+      } catch (err: any) {
+        console.error('NETWORK OR PARSING ERROR:', err);
+        setUploadStatus(`✗ Connection Error: ${err.message || 'Check console'}`);
+      } finally {
+        setIsUploading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      console.error('FileReader error:', reader.error);
+      setUploadStatus('✗ Failed to read file');
+      setIsUploading(false);
+    };
+
+    // Use readAsDataURL to get base64 string directly and safely
+    reader.readAsDataURL(file);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleQuerySubmit = () => {
@@ -102,6 +214,36 @@ function App() {
   return (
     <div className='app-container'>
 
+      {/* Login Modal */}
+      {showLoginModal && (
+        <div className='modal-overlay' onClick={() => setShowLoginModal(false)}>
+          <div className='modal' onClick={e => e.stopPropagation()}>
+            <h2>Admin Login</h2>
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            />
+            {loginError && <p className='error-text'>{loginError}</p>}
+            <div className='modal-buttons'>
+              <button onClick={() => setShowLoginModal(false)} className='cancel-btn'>Cancel</button>
+              <button onClick={handleLogin} disabled={isLoggingIn} className='login-btn'>
+                {isLoggingIn ? 'Logging in...' : 'Login'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <div className='sidebar-header'>
@@ -114,11 +256,44 @@ function App() {
           </button>
         </div>
 
-        <div className='sidebar-footer'>
-          <div className='user-info'>
-            <div className='avatar'>U</div>
-            <span className='username'>User</span>
+        {/* Admin Upload Section */}
+        {isAdmin && (
+          <div className='upload-section'>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".txt,.md"
+              style={{ display: 'none' }}
+            />
+            <button
+              className='upload-btn'
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              <span className='icon'>{isUploading ? '⏳' : '📁'}</span>
+              <span className='text'>{isUploading ? 'Uploading...' : 'Upload Files'}</span>
+            </button>
+            {uploadStatus && (
+              <p className={`upload-status ${uploadStatus.startsWith('✓') ? 'success' : 'error'}`}>
+                {uploadStatus}
+              </p>
+            )}
           </div>
+        )}
+
+        <div className='sidebar-footer'>
+          {isAdmin ? (
+            <div className='user-info admin' onClick={handleLogout}>
+              <div className='avatar admin'>A</div>
+              <span className='username'>Admin (Logout)</span>
+            </div>
+          ) : (
+            <div className='user-info' onClick={() => setShowLoginModal(true)}>
+              <div className='avatar'>🔐</div>
+              <span className='username'>Admin Login</span>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -134,7 +309,7 @@ function App() {
         {/* Chat Header */}
         <header className='chat-header'>
           <h1>AcadGPT</h1>
-          <span className='model-badge'>GPT-4</span>
+          <span className='model-badge'>Gemini-2.5-Flash</span>
         </header>
 
         {/* Messages Container */}

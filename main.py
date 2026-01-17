@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import base64
@@ -7,9 +8,40 @@ from rag_chain import rag_chain
 
 app = FastAPI()
 
+# CORS middleware for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Dummy admin credentials
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin123"
+
 @app.get('/', tags=["General"])
 def root():
     return RedirectResponse('/docs')
+
+# Auth Models and Endpoint
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@app.post('/auth/login', tags=["Auth"])
+def login(request: LoginRequest):
+    if request.username == ADMIN_USERNAME and request.password == ADMIN_PASSWORD:
+        return {
+            'status': status.HTTP_200_OK,
+            'message': 'Login successful',
+            'isAdmin': True
+        }
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid credentials"
+    )
 
 class FileRequest(BaseModel):
     file_data:str
@@ -21,16 +53,26 @@ def upload_file(request:FileRequest):
         decoded_bytes = base64.b64decode(request.file_data)
         file_str = decoded_bytes.decode("utf-8")
     except Exception as e:
+        print(f"Base64 Decode Error: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file data: {str(e)}"
+            detail=f"Decode error: {str(e)}"
         )
     
     if not file_str:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid file data: File is empty or null...")
     
-    texts = text_splitter.create_documents([file_str])
-    ids = vector_store.add_documents(texts)
+    try:
+        print(f"Adding {len(file_str)} characters to vector store...")
+        texts = text_splitter.create_documents([file_str])
+        ids = vector_store.add_documents(texts)
+        print(f"Successfully added documents with ids: {ids}")
+    except Exception as e:
+        print(f"Error adding to vector store: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Vector store error: {str(e)}"
+        )
 
     return{
         'status' : status.HTTP_201_CREATED,
