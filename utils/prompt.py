@@ -24,3 +24,33 @@ def rag_prompt():
 
     rag_prompt = PromptTemplate.from_template(prompt_template)
     return rag_prompt
+
+def judge_prompt():
+    prompt_template = """
+    You are an impartial judge evaluating the quality of an answer provided by an AI assistant for a user's query.
+    
+    Query: {query}
+    Answer: {answer}
+    
+    Your task is to determine if the answer is satisfactory, accurate, and relevant to the query.
+    
+    Return a response in the following format:
+    Status: [SATISFACTORY | UNSATISFACTORY]
+    Feedback: [If UNSATISFACTORY, provide concise feedback on what is missing or wrong. If SATISFACTORY, leave empty.]
+    """
+    return PromptTemplate.from_template(prompt_template)
+
+def query_refining_prompt():
+    prompt_template = """
+    You are an expert search query improver. 
+    The original query yielded an unsatisfactory answer. 
+    
+    Original Query: {query}
+    Previous Answer Feedback: {feedback}
+    
+    Please generate a new, optimized search query that addresses the feedback and is more likely to retrieve relevant information.
+    Do not add any preamble or explanation, just the new query text.
+    
+    New Query:
+    """
+    return PromptTemplate.from_template(prompt_template)
