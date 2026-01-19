@@ -60,3 +60,6 @@ To run the complete application start the backend and the frontend simultaneousl
 * Ensure the backend is running before initiating frontend requests.
 * API URLs and ports should align between frontend and backend configurations.
 * This setup is intended for local development.
+
+## Setting the ENVIRONMENT VARIABLES
+MongoDB and Gemini API env variables must be set in a ``.env`` file in the root directory.
