@@ -7,6 +7,8 @@ import remarkGfm from "remark-gfm";
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  interactionId?: string;
+  feedbackStatus?: 'up' | 'down' | 'neutral';
 }
 
 const API_BASE = 'http://localhost:8000';
@@ -14,7 +16,18 @@ const API_BASE = 'http://localhost:8000';
 function App() {
 
   const [query, setQuery] = useState<string>('');
-  const [messages, setMessages] = useState<Message[]>([]);
+
+  // Initialize from sessionStorage
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const saved = sessionStorage.getItem('chat_history');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Save to sessionStorage whenever messages change
+  useEffect(() => {
+    sessionStorage.setItem('chat_history', JSON.stringify(messages));
+  }, [messages]);
+
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [currentResponse, setCurrentResponse] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
@@ -147,12 +160,33 @@ function App() {
       setIsUploading(false);
     };
 
+
+
     // Use readAsDataURL to get base64 string directly and safely
     reader.readAsDataURL(file);
 
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFeedback = async (interactionId: string, feedback: 'up' | 'down' | 'neutral') => {
+    try {
+      await fetch(`${API_BASE}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interactionId, feedback })
+      });
+
+      // Update local state to show feedback was given
+      setMessages(prev => prev.map(msg =>
+        msg.interactionId === interactionId
+          ? { ...msg, feedbackStatus: feedback }
+          : msg
+      ));
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
     }
   };
 
@@ -170,6 +204,7 @@ function App() {
 
     // Track accumulated response locally to avoid closure issues
     let accumulatedResponse = '';
+    let currentInteractionId = '';
 
     // Open Websocket Instance
     const websocket = new WebSocket('ws://localhost:8000/ws/stream');
@@ -178,17 +213,26 @@ function App() {
     // Websocket On Open Action
     websocket.onopen = () => {
       console.log("Websocket connection established.");
-      websocket.send(JSON.stringify({ query: userMessage }))
+      websocket.send(JSON.stringify({ query: userMessage, history: messages }))
     };
 
     // ON MESSAGE HANDLER
     websocket.onmessage = (event) => {
       const data = event.data;
-      console.log('data: ', data);
+
+      if (data.startsWith('<<ID:')) {
+        currentInteractionId = data.replace('<<ID:', '').replace('>>', '');
+        return;
+      }
+
       if (data == '<<END>>') {
         // Add the complete response to messages before closing
         if (accumulatedResponse) {
-          setMessages(msgs => [...msgs, { role: 'assistant', content: accumulatedResponse }]);
+          setMessages(msgs => [...msgs, {
+            role: 'assistant',
+            content: accumulatedResponse,
+            interactionId: currentInteractionId
+          }]);
         }
         setCurrentResponse('');
         setIsStreaming(false);
@@ -203,7 +247,11 @@ function App() {
     websocket.onerror = (error) => {
       console.error('WebSocket error:', error);
       if (accumulatedResponse) {
-        setMessages(msgs => [...msgs, { role: 'assistant', content: accumulatedResponse }]);
+        setMessages(msgs => [...msgs, {
+          role: 'assistant',
+          content: accumulatedResponse,
+          interactionId: currentInteractionId
+        }]);
       }
       setCurrentResponse('');
       setIsStreaming(false);
@@ -353,9 +401,37 @@ function App() {
                     {message.role === 'user' ? 'U' : '🤖'}
                   </div>
                   <div className='message-content'>
-                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {message.content}
                     </ReactMarkdown>
+                    {message.role === 'assistant' && message.interactionId && (
+                      <div className='feedback-buttons'>
+                        <button
+                          className={`feedback-btn ${message.feedbackStatus === 'up' ? 'active' : ''}`}
+                          onClick={() => handleFeedback(message.interactionId!, 'up')}
+                          disabled={!!message.feedbackStatus}
+                          title="Good response"
+                        >
+                          👍
+                        </button>
+                        <button
+                          className={`feedback-btn ${message.feedbackStatus === 'neutral' ? 'active' : ''}`}
+                          onClick={() => handleFeedback(message.interactionId!, 'neutral')}
+                          disabled={!!message.feedbackStatus}
+                          title="Neutral response"
+                        >
+                          😐
+                        </button>
+                        <button
+                          className={`feedback-btn ${message.feedbackStatus === 'down' ? 'active' : ''}`}
+                          onClick={() => handleFeedback(message.interactionId!, 'down')}
+                          disabled={!!message.feedbackStatus}
+                          title="Bad response"
+                        >
+                          👎
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -363,7 +439,7 @@ function App() {
               {isStreaming && (
                 <div className='message ai-message'>
                   <div className='message-avatar ai'>🤖</div>
-                 <div className="message-content">
+                  <div className="message-content">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {currentResponse + (isStreaming ? "|" : "")}
                     </ReactMarkdown>

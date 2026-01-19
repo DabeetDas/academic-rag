@@ -85,12 +85,12 @@ class RAGChain:
         
         return is_satisfactory, feedback
 
-    def invoke(self, query: str):
+    def invoke(self, query: str, chat_history: list = None):
         current_query = query
         final_answer = ""
         
         # Initial Retrieval
-        retrieved_query_obj = retrieve_query(current_query, self.llm)
+        retrieved_query_obj = retrieve_query(current_query, self.llm, chat_history)
         search_query = retrieved_query_obj.content
         
         for attempt in range(self.max_retries + 1):
@@ -99,7 +99,13 @@ class RAGChain:
             
             docs = self.retriever.invoke(search_query)
             context = format_docs(docs)
-            final_prompt = self.prompt.format(context=context, query=query) # Use original user query for answer generation
+            
+            formatted_history = ""
+            if chat_history:
+                for msg in chat_history:
+                    formatted_history += f"{msg['role'].capitalize()}: {msg['content']}\n"
+
+            final_prompt = self.prompt.format(context=context, query=query, chat_history=formatted_history) # Use original user query for answer generation
             answer_response = self.llm.invoke(final_prompt)
             current_answer = answer_response.content
             
@@ -122,14 +128,14 @@ class RAGChain:
 
         return final_answer
     
-    def stream(self, query: str):
+    def stream(self, query: str, chat_history: list = None):
         # For stream, we ideally want to stream the process or just the final answer.
         # Since the interface usually expects the final answer stream, we will buffer until final answer is found
         # then stream the final answer.
         # Note: This effectively defeats the purpose of 'streaming' as in 'immediate tokens', 
         # but is necessary for validation loops unless we stream status updates.
         
-        final_response = self.invoke(query)
+        final_response = self.invoke(query, chat_history)
         # We can't easily "stream" a completed AIMessage response in the same way as a generator
         # So we will just yield the content if it's already done.
         # Or better, we can re-generate the final known good answer with stream=True if we want that UX,

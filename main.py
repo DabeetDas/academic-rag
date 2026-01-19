@@ -7,6 +7,16 @@ from rag_chain import text_splitter, vector_store
 from rag_chain import rag_chain
 import io
 from pypdf import PdfReader
+import os
+from pymongo import MongoClient
+from datetime import datetime
+from bson import ObjectId
+
+# Initialize MongoDB
+MONGO_URI = os.getenv("MONGO_URI")
+mongo_client = MongoClient(MONGO_URI)
+db = mongo_client["rag_db"]
+interactions = db["interactions"]
 
 app = FastAPI()
 
@@ -122,6 +132,7 @@ def similarity_search(request:SearchRequest):
     
 class RAGRequest(BaseModel):
     query: str
+    history: list = []
 
 @app.post('/rag',tags=["RAG"])
 def rag_chain_invoke(request:RAGRequest):
@@ -132,12 +143,38 @@ def rag_chain_invoke(request:RAGRequest):
             detail = "Error in request: Empty or None String Value in Query..."
         )
     
-    response = rag_chain.invoke(query)
+    response = rag_chain.invoke(query, request.history)
+    
+    # Store interaction
+    interaction = {
+        "query": query,
+        "response": response.content,
+        "history": request.history,
+        "timestamp": datetime.utcnow(),
+        "feedback": None
+    }
+    inserted_id = interactions.insert_one(interaction).inserted_id
 
     return{
         'status' : status.HTTP_200_OK,
-        'response' : response
+        'response' : response,
+        'interactionId': str(inserted_id)
     }
+
+class FeedbackRequest(BaseModel):
+    interactionId: str
+    feedback: str  # "up", "down", or maybe text
+
+@app.post('/feedback', tags=["Feedback"])
+def submit_feedback(request: FeedbackRequest):
+    try:
+        interactions.update_one(
+            {"_id": ObjectId(request.interactionId)},
+            {"$set": {"feedback": request.feedback}}
+        )
+        return {"status": "success", "message": "Feedback received"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.websocket("/ws/stream")
 async def chat_stream(websocket:WebSocket):
@@ -150,12 +187,29 @@ async def chat_stream(websocket:WebSocket):
                 await websocket.send_text('<<E:NO_QUERY>>')
                 break
             query = data['query']
+            history = data.get('history', [])
             
-            for token in rag_chain.stream(query):
+            for token in rag_chain.stream(query, history):
                 await websocket.send_text(token.content)
                 resp += token.content
             
+            # Store interaction
+            try:
+                interaction = {
+                    "query": query,
+                    "response": resp,
+                    "timestamp": datetime.utcnow(),
+                    "feedback": None
+                }
+                inserted_id = interactions.insert_one(interaction).inserted_id
+                
+                # Send ID to client
+                await websocket.send_text(f'<<ID:{str(inserted_id)}>>')
+            except Exception as e:
+                print(f"Error logging to Mongo: {e}")
+
             await websocket.send_text('<<END>>')
+            resp = '' # Reset buffer
     except WebSocketDisconnect:
         print("Websocket Disconnected")
     except Exception as e:

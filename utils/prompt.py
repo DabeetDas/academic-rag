@@ -15,6 +15,9 @@ def rag_prompt():
     
     Context:
     {context}
+
+    Chat History:
+    {chat_history}
     
     Question:
     {query}
