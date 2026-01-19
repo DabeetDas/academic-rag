@@ -1,5 +1,7 @@
 import './App.css'
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 // Message type for chat history
 interface Message {
@@ -118,7 +120,10 @@ function App() {
         const response = await fetch(`${API_BASE}/upload_file`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_data: base64 })
+          body: JSON.stringify({
+            file_data: base64,
+            filename: file.name
+          })
         });
 
         if (response.ok) {
@@ -289,10 +294,16 @@ function App() {
               <span className='username'>Admin (Logout)</span>
             </div>
           ) : (
-            <div className='user-info' onClick={() => setShowLoginModal(true)}>
-              <div className='avatar'>🔐</div>
-              <span className='username'>Admin Login</span>
-            </div>
+            <>
+              <div className='user-info'>
+                <div className='avatar'>👤</div>
+                <span className='username'>Guest User</span>
+              </div>
+              <div className='user-info' onClick={() => setShowLoginModal(true)}>
+                <div className='avatar'>🔐</div>
+                <span className='username'>Admin Login</span>
+              </div>
+            </>
           )}
         </div>
       </aside>
@@ -342,7 +353,9 @@ function App() {
                     {message.role === 'user' ? 'U' : '🤖'}
                   </div>
                   <div className='message-content'>
-                    <p>{message.content}</p>
+                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ))}
@@ -350,8 +363,10 @@ function App() {
               {isStreaming && (
                 <div className='message ai-message'>
                   <div className='message-avatar ai'>🤖</div>
-                  <div className='message-content'>
-                    <p>{currentResponse}<span className='cursor'>▊</span></p>
+                 <div className="message-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {currentResponse + (isStreaming ? "|" : "")}
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}

@@ -5,6 +5,8 @@ from pydantic import BaseModel
 import base64
 from rag_chain import text_splitter, vector_store
 from rag_chain import rag_chain
+import io
+from pypdf import PdfReader
 
 app = FastAPI()
 
@@ -45,18 +47,35 @@ def login(request: LoginRequest):
 
 class FileRequest(BaseModel):
     file_data:str
+    filename:str
 
 @app.post('/upload_file',tags=["VectorDB"])
 def upload_file(request:FileRequest):
     file_str = ''
     try:
         decoded_bytes = base64.b64decode(request.file_data)
-        file_str = decoded_bytes.decode("utf-8")
+        
+        if request.filename.lower().endswith('.pdf'):
+            pdf_file = io.BytesIO(decoded_bytes)
+            reader = PdfReader(pdf_file)
+            
+            # Extract text from all pages
+            text_content = []
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    text_content.append(text)
+            
+            file_str = "\n".join(text_content)
+        else:
+            # Default to text file handling
+            file_str = decoded_bytes.decode("utf-8")
+            
     except Exception as e:
-        print(f"Base64 Decode Error: {e}")
+        print(f"File Processing Error: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Decode error: {str(e)}"
+            detail=f"File processing error: {str(e)}"
         )
     
     if not file_str:
