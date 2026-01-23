@@ -1,3 +1,5 @@
 .env
 __pycache__
 chroma_dbdata/
+node_modules
+chroma_db
