@@ -2,6 +2,9 @@ import './App.css'
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import 'katex/dist/katex.min.css';
 
 // Message type for chat history
 interface Message {
@@ -401,7 +404,10 @@ function App() {
                     {message.role === 'user' ? 'U' : '🤖'}
                   </div>
                   <div className='message-content'>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                    >
                       {message.content}
                     </ReactMarkdown>
                     {message.role === 'assistant' && message.interactionId && (
@@ -440,7 +446,10 @@ function App() {
                 <div className='message ai-message'>
                   <div className='message-avatar ai'>🤖</div>
                   <div className="message-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                    >
                       {currentResponse + (isStreaming ? "|" : "")}
                     </ReactMarkdown>
                   </div>
@@ -452,6 +461,7 @@ function App() {
         </div>
 
         {/* Input Area */}
+
         <div className='input-area'>
           <div className='input-container'>
             <textarea
