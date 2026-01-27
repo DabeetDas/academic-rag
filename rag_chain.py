@@ -8,42 +8,66 @@ logging.getLogger("chromadb").setLevel(logging.CRITICAL)
 from langchain_core.vectorstores.base import VectorStoreRetriever
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.prompts import PromptTemplate
-from langchain_chroma import Chroma
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.documents import Document
+from typing import List
+from pinecone import Pinecone
 from utils.query_retrieve import retrieve_query
 from utils.format_docs import format_docs
-from langchain_text_splitters import CharacterTextSplitter
 from utils.prompt import rag_prompt, judge_prompt, query_refining_prompt
 
 # Initialize Gemini LLM
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 
-# Initialize Gemini Embeddings
-embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+if not PINECONE_API_KEY:
+    raise ValueError("PINECONE_API_KEY not found in environment variables")
 
-#embeddings = FakeEmbeddings(size=768) # Gemini embedding size is 768
+pc = Pinecone(api_key=PINECONE_API_KEY)
+# These constants should match what was used in upload_to_pinecone.py
+INDEX_NAME = "acadgpt" 
+MODEL_NAME = "llama-text-embed-v2"
+NAMESPACE = "default"
 
-text_splitter = CharacterTextSplitter(
-    chunk_size = 600,
-    chunk_overlap = 150,
-    length_function = len
-)
+class PineconeRetriever(BaseRetriever):
+    def _get_relevant_documents(
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+    ) -> List[Document]:
+        # Embed the query using Pinecone Inference
+        # input_type="query" is important for asymmetric retrieval models
+        embeddings = pc.inference.embed(
+            model=MODEL_NAME,
+            inputs=[query],
+            parameters={"input_type": "query"}
+        )
+        query_embedding = embeddings[0]['values']
 
-# Initialize ChromaDB as Vector Store with persistence
-from chromadb.config import Settings
+        # Query the index
+        index = pc.Index(INDEX_NAME)
+        results = index.query(
+            namespace=NAMESPACE,
+            vector=query_embedding,
+            top_k=5, 
+            include_values=False,
+            include_metadata=True
+        )
 
-# Parse telemetry setting (default to True if not set, strict check for "False")
-telemetry_var = os.getenv("ANONYMIZED_TELEMETRY", "True")
-telemetry_enabled = telemetry_var.lower() != "false"
+        documents = []
+        for match in results['matches']:
+            metadata = match['metadata']
+            # Reconstruct document content if stored in metadata
+            content = metadata.get('text', '')
+            # Clean up metadata to remove the text field if you don't want it duplicated
+            doc_metadata = {k: v for k, v in metadata.items() if k != 'text'}
+            doc_metadata['score'] = match['score']
+            
+            documents.append(Document(page_content=content, metadata=doc_metadata))
+        
+        return documents
 
-vector_store = Chroma(
-    collection_name="test_collection",
-    embedding_function=embeddings,
-    persist_directory="./chroma_db",
-    client_settings=Settings(anonymized_telemetry=telemetry_enabled)
-)
-
-# Set Chroma as the Retriever
-retriever = vector_store.as_retriever()
+# Set Pinecone as the Retriever
+retriever = PineconeRetriever()
 
 custom_rag_prompt = rag_prompt()
 custom_judge_prompt = judge_prompt()
