@@ -378,21 +378,21 @@ function App() {
         <div className='messages-container'>
           {messages.length === 0 && !isStreaming ? (
             <div className='welcome-screen'>
-              <div className='welcome-icon'>🤖</div>
+              <div className='welcome-icon'>📖</div>
               <h2>How can I help you today?</h2>
-              <p>Ask me anything about your data</p>
+              <p>I am an academic assistant made to make your life easier and help you with your courses.</p>
               <div className='suggestion-cards'>
-                <div className='suggestion-card' onClick={() => { setQuery('Analyze my documents'); }}>
-                  <span className='card-icon'>📊</span>
-                  <span>Analyze my documents</span>
+                <div className='suggestion-card' onClick={() => { setQuery('What is an allele?'); }}>
+                  <span className='card-icon'>🧬</span>
+                  <span>What is an allele?</span>
                 </div>
-                <div className='suggestion-card' onClick={() => { setQuery('Search through files'); }}>
-                  <span className='card-icon'>🔍</span>
-                  <span>Search through files</span>
+                <div className='suggestion-card' onClick={() => { setQuery('Explain the concept of GDP.'); }}>
+                  <span className='card-icon'>💰</span>
+                  <span>Explain the concept of GDP.</span>
                 </div>
-                <div className='suggestion-card' onClick={() => { setQuery('Get insights from my data'); }}>
-                  <span className='card-icon'>💡</span>
-                  <span>Get insights</span>
+                <div className='suggestion-card' onClick={() => { setQuery('What is a discounted cash flow?'); }}>
+                  <span className='card-icon'>💲</span>
+                  <span>What is a discounted cash flow?</span>
                 </div>
               </div>
             </div>

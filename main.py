@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import base64
-from rag_chain import text_splitter, vector_store
+#from rag_chain import text_splitter, vector_store
 from rag_chain import rag_chain
 import io
 from pypdf import PdfReader
@@ -55,9 +55,11 @@ def login(request: LoginRequest):
         detail="Invalid credentials"
     )
 
+'''
 class FileRequest(BaseModel):
     file_data:str
     filename:str
+
 
 @app.post('/upload_file',tags=["VectorDB"])
 def upload_file(request:FileRequest):
@@ -107,7 +109,7 @@ def upload_file(request:FileRequest):
         'status' : status.HTTP_201_CREATED,
         'uploaded_ids' : ids
     }
-
+'''
 class SearchRequest(BaseModel):
     search_str : str
     n: int = 2
