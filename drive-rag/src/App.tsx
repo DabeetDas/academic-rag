@@ -14,7 +14,7 @@ interface Message {
   feedbackStatus?: 'up' | 'down' | 'neutral';
 }
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function App() {
 
@@ -210,7 +210,9 @@ function App() {
     let currentInteractionId = '';
 
     // Open Websocket Instance
-    const websocket = new WebSocket('ws://localhost:8000/ws/stream');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsBase = import.meta.env.VITE_WS_URL || `${wsProtocol}//localhost:8000`;
+    const websocket = new WebSocket(`${wsBase}/ws/stream`);
     setIsStreaming(true);
 
     // Websocket On Open Action
